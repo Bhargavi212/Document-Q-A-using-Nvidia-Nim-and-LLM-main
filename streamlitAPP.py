@@ -1,63 +1,192 @@
-import streamlit as st
 import os
-import time
-from langchain_nvidia_ai_endpoints import NVIDIAEmbeddings, ChatNVIDIA
-from langchain_community.document_loaders import PyPDFDirectoryLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter 
-from langchain.chains.combine_documents import create_stuff_documents_chain 
-from langchain_core.prompts import ChatMessagePromptTemplate
-from langchain_core.prompts.prompt import PromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain.chains import create_retrieval_chain
-from langchain_community.vectorstores import FAISS
+import streamlit as st
+
 from dotenv import load_dotenv
+from langchain_nvidia_ai_endpoints import ChatNVIDIA, NVIDIAEmbeddings
+from langchain_community.document_loaders import PyPDFDirectoryLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
+
+
 load_dotenv()
 
-# Load the Nvidia API key
-os.environ['NVIDIA_API_KEY'] = os.getenv('NVIDIA_API_KEY')
+st.set_page_config(
+    page_title="NVIDIA NIM Document Q&A",
+    page_icon="📄",
+    layout="wide"
+)
 
-llm = ChatNVIDIA(model="meta/llama-3.3-70b-instruct")
-
-def vector_embedding():
-    if "vectors" not in st.session_state:
-        st.session_state.embeddings = NVIDIAEmbeddings()
-        st.session_state.loader = PyPDFDirectoryLoader("data")  ### add your docs in data folder
-        st.session_state.docs = st.session_state.loader.load()
-        st.session_state.text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=100)
-        st.session_state.final_documents = st.session_state.text_splitter.split_documents(st.session_state.docs[:30])
-        st.session_state.vectors = FAISS.from_documents(st.session_state.final_documents, st.session_state.embeddings)
-
-st.title("Document Q&A using Nvidia Nim and LLM")
-
-from langchain_core.prompts import PromptTemplate
-
-prompt = PromptTemplate(
-    template="""Human: Answer the questions based on the provided context only.
-    Please provide the most accurate response based on question
-    <context>
-    {context}
-    </context>
-    Questions:{input}
-    """,
-    input_variables=["context", "input"]
+st.title("📄 Document Q&A using NVIDIA NIM")
+st.write(
+    "Ask questions about PDF documents using NVIDIA NIM, "
+    "LangChain, FAISS, and Retrieval-Augmented Generation."
 )
 
 
-prompt1 = st.text_input("Enter your question")
-if st.button("Document Embedding"):
-    vector_embedding()
-    st.write("VectorStoreDB is ready - FAISS using NVIDIA Embedding")
+# -----------------------------
+# API KEY CHECK
+# -----------------------------
 
-if prompt1:
-    document_chain = create_stuff_documents_chain(llm, prompt)
-    retriever = st.session_state.vectors.as_retriever()
-    retrieval_chain = create_retrieval_chain(retriever, document_chain)
-    start = time.process_time()
-    response = retrieval_chain.invoke({'input': prompt1})
-    print("Response time:", time.process_time() - start)
-    st.write(response['answer'])
+api_key = os.getenv("NVIDIA_API_KEY")
 
-    with st.expander("Document Similarity Search"):
-        for i, doc in enumerate(response["context"]):
-            st.write(doc.page_content)
-            st.write("-------------------------------------------------------------")
+if not api_key:
+    st.error(
+        "NVIDIA_API_KEY is missing. "
+        "Add it to your local .env file before running the application."
+    )
+    st.stop()
+
+
+# -----------------------------
+# INITIALIZE LLM
+# -----------------------------
+
+llm = ChatNVIDIA(
+    model="meta/llama-3.1-70b-instruct",
+    api_key=api_key
+)
+
+
+# -----------------------------
+# VECTOR EMBEDDING FUNCTION
+# -----------------------------
+
+def create_vector_store():
+
+    if not os.path.exists("data"):
+        st.error("The data folder does not exist.")
+        return
+
+    loader = PyPDFDirectoryLoader("data")
+    documents = loader.load()
+
+    if not documents:
+        st.warning("No PDF files were found inside the data folder.")
+        return
+
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=700,
+        chunk_overlap=100
+    )
+
+    document_chunks = text_splitter.split_documents(documents)
+
+    embeddings = NVIDIAEmbeddings(
+        model="nvidia/nv-embedqa-e5-v5"
+    )
+
+    st.session_state.vectors = FAISS.from_documents(
+        document_chunks,
+        embeddings
+    )
+
+    st.session_state.document_count = len(documents)
+    st.session_state.chunk_count = len(document_chunks)
+
+
+# -----------------------------
+# CREATE EMBEDDINGS
+# -----------------------------
+
+if st.button("Create Document Embeddings"):
+
+    with st.spinner("Reading PDFs and creating embeddings..."):
+        create_vector_store()
+
+    if "vectors" in st.session_state:
+
+        st.success(
+            f"Embeddings created successfully from "
+            f"{st.session_state.document_count} pages "
+            f"and {st.session_state.chunk_count} chunks."
+        )
+
+
+# -----------------------------
+# USER QUESTION
+# -----------------------------
+
+question = st.text_input(
+    "Ask a question about the documents"
+)
+
+
+if question:
+
+    if "vectors" not in st.session_state:
+
+        st.warning(
+            "Please click 'Create Document Embeddings' before asking a question."
+        )
+
+    else:
+
+        prompt = ChatPromptTemplate.from_template(
+            """
+            Answer the question using only the context below.
+
+            If the answer cannot be found in the context,
+            say that the information is not available in the document.
+
+            <context>
+            {context}
+            </context>
+
+            Question:
+            {input}
+            """
+        )
+
+        document_chain = create_stuff_documents_chain(
+            llm,
+            prompt
+        )
+
+        retriever = st.session_state.vectors.as_retriever(
+            search_kwargs={"k": 4}
+        )
+
+        retrieval_chain = create_retrieval_chain(
+            retriever,
+            document_chain
+        )
+
+        with st.spinner("Searching the document..."):
+
+            response = retrieval_chain.invoke(
+                {"input": question}
+            )
+
+        st.subheader("Answer")
+        st.write(response["answer"])
+
+
+        with st.expander("View Retrieved Sources"):
+
+            for i, document in enumerate(
+                response.get("context", []),
+                start=1
+            ):
+
+                source = document.metadata.get(
+                    "source",
+                    "Unknown source"
+                )
+
+                page = document.metadata.get(
+                    "page",
+                    "Unknown page"
+                )
+
+                st.markdown(
+                    f"**Source {i}: {source} — Page {page}**"
+                )
+
+                st.write(
+                    document.page_content[:1000]
+                )
+
+                st.divider()
