@@ -1,32 +1,106 @@
-Document Question & Answering using NVIDIA NIM and Large Language Models (LLMs)
+# 📄 Document Intelligence Assistant
 
-This repository hosts the implementation of a document-based question and answering system utilizing NVIDIA Inference Microservices (NIM) and large language models (LLMs). The system is designed to parse documents and provide answers to queries based on the content, leveraging the power of NVIDIA NIM for optimized inference and LLMs for understanding and generating human-like responses.
+An AI-powered **Retrieval-Augmented Generation (RAG)** application that lets users upload PDF documents and ask grounded questions about their content.
 
-#### Prerequisites
-To run this project, you will need:
-- Python 3.7 or later
-- pip (Python package installer)
+Built with **NVIDIA NIM, NVIDIA Nemotron, LangChain, FAISS, and Streamlit**.
 
-#### Installation
-To install the required Python packages, run the following command in your terminal:
-```
-pip install -r requirements.txt
-```
+## 🚀 Features
 
-#### Configuration
-- Rename the `.env.example` file to `.env` and update it with the necessary configuration values such as API keys and database URIs if applicable.
+- Upload one or multiple PDF documents
+- Automatic PDF text extraction and chunking
+- NVIDIA-powered semantic embeddings
+- FAISS vector similarity search
+- Natural-language document Q&A
+- Grounded answers using NVIDIA Nemotron
+- Retrieved sources with page numbers
+- Multi-document support
+- Interactive Streamlit interface
 
-#### Structure
-- `nvidia/`: This directory contains modules specific to NVIDIA NIM integration.
-- `streamlitAPP.py`: A Streamlit application that provides a user interface for interacting with the Q&A system.
-- `requirements.txt`: Contains all the necessary Python packages needed to run the application.
+## 🧠 RAG Architecture
 
-#### Running the Application
-To launch the Streamlit application, execute the following command:
-```
-streamlit run streamlitAPP.py
-```
-This command will start the Streamlit server and the application can be accessed through a web browser at the address shown in the terminal, typically `http://localhost:8501`.
+PDF Upload → Text Extraction → Chunking → NVIDIA Embeddings → FAISS → Semantic Retrieval → NVIDIA NIM → Grounded Answer + Sources
 
-#### Usage
-Once the application is running, users can upload documents and enter questions. The system will process the documents using the configured LLMs and NVIDIA NIM to provide relevant answers.
+## 🛠️ Tech Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | Streamlit |
+| LLM API | NVIDIA NIM |
+| Generation Model | NVIDIA Nemotron |
+| Embeddings | NVIDIA Nemotron Embed |
+| RAG Framework | LangChain |
+| Vector Store | FAISS |
+| PDF Processing | PyPDF |
+| Language | Python |
+
+## 🤖 Models
+
+**Generation:** `nvidia/nemotron-3.5-lightning-30b-a3b`
+
+**Embeddings:** `nvidia/nemotron-3-embed-1b`
+
+## 🔍 RAG Configuration
+
+- Chunk size: 700
+- Chunk overlap: 100
+- Retrieved chunks: Top 4
+- Embedding dimension: 2048
+
+The LLM is instructed to answer only from retrieved document context. If the answer cannot be found, the application reports that the information is unavailable in the uploaded documents.
+
+## 💡 Example
+
+Upload the **NIST AI Risk Management Framework (AI RMF 1.0)** and ask:
+
+> What are the core functions of the NIST AI Risk Management Framework?
+
+Example answer:
+
+> The core functions are GOVERN, MAP, MEASURE, and MANAGE.
+
+Retrieved source sections and page numbers are displayed for verification.
+
+## 📦 Installation
+
+Clone the repository:
+
+`git clone https://github.com/Bhargavi212/Document-Q-A-using-Nvidia-Nim-and-LLM-main.git`
+
+Install dependencies:
+
+`pip install -r requirements.txt`
+
+## 🔐 NVIDIA API Key
+
+Set the `NVIDIA_API_KEY` environment variable or place it in a local `.env` file.
+
+**Never commit API keys or `.env` files to GitHub.**
+
+## ▶️ Run
+
+`streamlit run streamlitAPP.py`
+
+## 🎯 Use Cases
+
+- Research paper analysis
+- Financial document review
+- Compliance and policy Q&A
+- Technical documentation search
+- Academic literature analysis
+- Enterprise knowledge assistants
+
+## 🔮 Future Improvements
+
+- Conversational memory
+- Hybrid search and reranking
+- Automated RAG evaluation
+- Persistent vector storage
+- Docker containerization
+- CI/CD
+- Production cloud deployment
+
+## 👩‍💻 Author
+
+**Bhargavi Reddy Alumolu**
+
+GitHub: https://github.com/Bhargavi212
