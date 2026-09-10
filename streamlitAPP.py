@@ -6,8 +6,8 @@ from langchain_nvidia_ai_endpoints import ChatNVIDIA, NVIDIAEmbeddings
 from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain.chains import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_classic.chains import create_retrieval_chain
+from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 
 
@@ -45,7 +45,7 @@ if not api_key:
 # -----------------------------
 
 llm = ChatNVIDIA(
-    model="meta/llama-3.1-70b-instruct",
+    model="nvidia/nemotron-3.5-lightning-30b-a3b",
     api_key=api_key
 )
 
@@ -75,7 +75,7 @@ def create_vector_store():
     document_chunks = text_splitter.split_documents(documents)
 
     embeddings = NVIDIAEmbeddings(
-        model="nvidia/nv-embedqa-e5-v5"
+        model="nvidia/nemotron-3-embed-1b"
     )
 
     st.session_state.vectors = FAISS.from_documents(
