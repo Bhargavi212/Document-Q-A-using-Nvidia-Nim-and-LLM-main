@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 import streamlit as st
 
 from dotenv import load_dotenv
@@ -15,41 +16,69 @@ from langchain_core.prompts import ChatPromptTemplate
 load_dotenv()
 
 st.set_page_config(
-    page_title="NVIDIA NIM Document Q&A",
+    page_title="Document Intelligence Assistant",
     page_icon="📄",
     layout="wide"
 )
 
-st.title("📄 Document Q&A using NVIDIA NIM")
-st.write(
-    "Ask questions about PDF documents using NVIDIA NIM, "
-    "LangChain, FAISS, and Retrieval-Augmented Generation."
+st.markdown(
+    """
+    <style>
+    .main-title {
+        font-size: 2.4rem;
+        font-weight: 700;
+        margin-bottom: 0.2rem;
+    }
+
+    .subtitle {
+        color: #6b7280;
+        font-size: 1.05rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .info-card {
+        padding: 1rem;
+        border-radius: 12px;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 1rem;
+    }
+
+    .source-card {
+        padding: 0.8rem;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        margin-bottom: 0.8rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
-uploaded_files = st.file_uploader(
-    "Upload PDF Documents",
-    type=["pdf"],
-    accept_multiple_files=True
+st.markdown(
+    '<div class="main-title">📄 Document Intelligence Assistant</div>',
+    unsafe_allow_html=True
 )
 
+st.markdown(
+    """
+    <div class="subtitle">
+    Upload PDF documents and ask grounded questions using NVIDIA NIM,
+    LangChain, FAISS, and Retrieval-Augmented Generation.
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-# -----------------------------
-# API KEY CHECK
-# -----------------------------
 
 api_key = os.getenv("NVIDIA_API_KEY")
 
 if not api_key:
     st.error(
         "NVIDIA_API_KEY is missing. "
-        "Add it to your local .env file before running the application."
+        "Add it to your environment before running the application."
     )
     st.stop()
 
-
-# -----------------------------
-# INITIALIZE LLM
-# -----------------------------
 
 llm = ChatNVIDIA(
     model="nvidia/nemotron-3.5-lightning-30b-a3b",
@@ -57,9 +86,52 @@ llm = ChatNVIDIA(
 )
 
 
-# -----------------------------
-# VECTOR EMBEDDING FUNCTION
-# -----------------------------
+with st.sidebar:
+    st.header("About")
+
+    st.write(
+        "This application performs semantic retrieval over uploaded PDFs "
+        "and generates answers grounded in the retrieved document context."
+    )
+
+    st.subheader("Technology Stack")
+
+    st.markdown(
+        """
+        - NVIDIA NIM
+        - Nemotron LLM
+        - NVIDIA Embeddings
+        - LangChain
+        - FAISS
+        - Streamlit
+        """
+    )
+
+    st.subheader("How to use")
+
+    st.markdown(
+        """
+        1. Upload one or more PDFs
+        2. Create document embeddings
+        3. Ask questions
+        4. Review retrieved sources
+        """
+    )
+
+    if st.button("Clear Session"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+
+        st.rerun()
+
+
+uploaded_files = st.file_uploader(
+    "Upload PDF Documents",
+    type=["pdf"],
+    accept_multiple_files=True,
+    help="You can upload one or multiple PDF documents."
+)
+
 
 def create_vector_store(uploaded_files):
 
@@ -70,9 +142,13 @@ def create_vector_store(uploaded_files):
     temp_dir = Path("temp_uploads")
     temp_dir.mkdir(exist_ok=True)
 
+    for old_file in temp_dir.glob("*.pdf"):
+        old_file.unlink()
+
     for uploaded_file in uploaded_files:
-        file_path = temp_dir / uploaded_file.name
-        with open(file_path, "wb") as f:
+        output_path = temp_dir / uploaded_file.name
+
+        with open(output_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
 
     loader = PyPDFDirectoryLoader(str(temp_dir))
@@ -99,33 +175,54 @@ def create_vector_store(uploaded_files):
     )
 
     st.session_state.document_count = len(uploaded_files)
+    st.session_state.page_count = len(documents)
     st.session_state.chunk_count = len(document_chunks)
 
 
-# -----------------------------
-# CREATE EMBEDDINGS
-# -----------------------------
+col1, col2 = st.columns([1, 2])
 
-if st.button("Create Document Embeddings"):
+with col1:
 
-    with st.spinner("Reading PDFs and creating embeddings..."):
-        create_vector_store(uploaded_files)
+    if st.button(
+        "Create Document Embeddings",
+        type="primary",
+        use_container_width=True
+    ):
+
+        with st.spinner(
+            "Reading documents and creating vector embeddings..."
+        ):
+            create_vector_store(uploaded_files)
+
+        if "vectors" in st.session_state:
+            st.success("Documents processed successfully.")
+
+
+with col2:
 
     if "vectors" in st.session_state:
 
-        st.success(
-            f"Embeddings created successfully from "
-            f"{st.session_state.document_count} pages "
-            f"and {st.session_state.chunk_count} chunks."
+        st.markdown(
+            f"""
+            <div class="info-card">
+            <b>Ready for questions</b><br>
+            Documents: {st.session_state.document_count} |
+            Pages: {st.session_state.page_count} |
+            Chunks: {st.session_state.chunk_count}
+            </div>
+            """,
+            unsafe_allow_html=True
         )
 
 
-# -----------------------------
-# USER QUESTION
-# -----------------------------
+st.divider()
+
+st.subheader("Ask your documents")
 
 question = st.text_input(
-    "Ask a question about the documents"
+    "Question",
+    placeholder="Example: What are the key risks discussed in this document?",
+    label_visibility="collapsed"
 )
 
 
@@ -134,17 +231,22 @@ if question:
     if "vectors" not in st.session_state:
 
         st.warning(
-            "Please click 'Create Document Embeddings' before asking a question."
+            "Upload your PDF and create document embeddings first."
         )
 
     else:
 
         prompt = ChatPromptTemplate.from_template(
             """
-            Answer the question using only the context below.
+            You are a document question-answering assistant.
 
-            If the answer cannot be found in the context,
-            say that the information is not available in the document.
+            Answer the user's question using only the provided document
+            context.
+
+            If the answer cannot be found in the context, respond:
+            "The information is not available in the uploaded documents."
+
+            Give a clear and concise answer.
 
             <context>
             {context}
@@ -169,39 +271,47 @@ if question:
             document_chain
         )
 
-        with st.spinner("Searching the document..."):
+        with st.spinner("Searching your documents..."):
 
             response = retrieval_chain.invoke(
                 {"input": question}
             )
 
         st.subheader("Answer")
-        st.write(response["answer"])
 
+        with st.chat_message("assistant"):
+            st.write(response["answer"])
 
-        with st.expander("View Retrieved Sources"):
+        context_docs = response.get("context", [])
+
+        if context_docs:
+
+            st.subheader("Retrieved Sources")
 
             for i, document in enumerate(
-                response.get("context", []),
+                context_docs,
                 start=1
             ):
 
-                source = document.metadata.get(
-                    "source",
-                    "Unknown source"
-                )
+                source = Path(
+                    document.metadata.get(
+                        "source",
+                        "Unknown document"
+                    )
+                ).name
 
                 page = document.metadata.get(
                     "page",
-                    "Unknown page"
+                    "Unknown"
                 )
 
-                st.markdown(
-                    f"**Source {i}: {source} — Page {page}**"
-                )
+                if isinstance(page, int):
+                    page = page + 1
 
-                st.write(
-                    document.page_content[:1000]
-                )
+                with st.expander(
+                    f"Source {i} — {source} — Page {page}"
+                ):
 
-                st.divider()
+                    st.write(
+                        document.page_content[:1200]
+                    )
