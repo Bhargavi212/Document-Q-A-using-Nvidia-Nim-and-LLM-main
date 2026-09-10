@@ -8,3 +8,6 @@ __pycache__/
 
 cloudflared
 streamlit.log
+
+cloudflare.log
+temp_uploads/

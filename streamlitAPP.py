@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import streamlit as st
 
 from dotenv import load_dotenv
@@ -23,6 +24,12 @@ st.title("📄 Document Q&A using NVIDIA NIM")
 st.write(
     "Ask questions about PDF documents using NVIDIA NIM, "
     "LangChain, FAISS, and Retrieval-Augmented Generation."
+)
+
+uploaded_files = st.file_uploader(
+    "Upload PDF Documents",
+    type=["pdf"],
+    accept_multiple_files=True
 )
 
 
@@ -54,17 +61,25 @@ llm = ChatNVIDIA(
 # VECTOR EMBEDDING FUNCTION
 # -----------------------------
 
-def create_vector_store():
+def create_vector_store(uploaded_files):
 
-    if not os.path.exists("data"):
-        st.error("The data folder does not exist.")
+    if not uploaded_files:
+        st.warning("Please upload at least one PDF file.")
         return
 
-    loader = PyPDFDirectoryLoader("data")
+    temp_dir = Path("temp_uploads")
+    temp_dir.mkdir(exist_ok=True)
+
+    for uploaded_file in uploaded_files:
+        file_path = temp_dir / uploaded_file.name
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+    loader = PyPDFDirectoryLoader(str(temp_dir))
     documents = loader.load()
 
     if not documents:
-        st.warning("No PDF files were found inside the data folder.")
+        st.warning("No readable PDF content was found.")
         return
 
     text_splitter = RecursiveCharacterTextSplitter(
@@ -83,7 +98,7 @@ def create_vector_store():
         embeddings
     )
 
-    st.session_state.document_count = len(documents)
+    st.session_state.document_count = len(uploaded_files)
     st.session_state.chunk_count = len(document_chunks)
 
 
@@ -94,7 +109,7 @@ def create_vector_store():
 if st.button("Create Document Embeddings"):
 
     with st.spinner("Reading PDFs and creating embeddings..."):
-        create_vector_store()
+        create_vector_store(uploaded_files)
 
     if "vectors" in st.session_state:
 
